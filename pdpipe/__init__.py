@@ -70,6 +70,7 @@ try:
     from . import sklearn_stages
     from .sklearn_stages import (
         Encode,
+        Impute,
         Scale,
         TfidfVectorizeTokenLists,
     )

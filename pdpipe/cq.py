@@ -749,3 +749,40 @@ class WithoutMissingValues(WithAtMostMissingValues):
 
     def __repr__(self):
         return "<ColumnQualifier: Without missing values>"
+
+
+class WithMissingValues(ColumnQualifier):
+    """Selectes all columns with missing values.
+
+    Parameters
+    ----------
+    **kwargs
+        Accepts all keyword arguments of the constructor of ColumnQualifier.
+        See the documentation of ColumnQualifier for details.
+
+    Example
+    -------
+        >>> import pandas as pd; import pdpipe as pdp; import numpy as np;
+        >>> df = pd.DataFrame(
+        ...    [[None, 1, 2],[None, None, 5]], [1,2], ['ph', 'grade', 'age'])
+        >>> cq = pdp.cq.WithMissingValues()
+        >>> cq
+        <ColumnQualifier: With missing values>
+        >>> cq(df)
+        ['ph', 'grade']
+    """
+
+    class _NA(object):
+
+        def __call__(self, df):
+            return list(df.columns[df.isna().any()])
+
+    def __init__(self, **kwargs):
+        cqfunc = WithMissingValues._NA()
+        cqfunc.__doc__ = "Columns with missing values"
+        self.__doc__ = cqfunc.__doc__
+        kwargs['func'] = cqfunc
+        super().__init__(**kwargs)
+
+    def __repr__(self):
+        return "<ColumnQualifier: With missing values>"
