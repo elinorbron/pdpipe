@@ -54,9 +54,9 @@ def test_scale():
     res_df = scale_stage(df)
     assert "ph" in res_df.columns
     assert "gt" in res_df.columns
-    assert res_df["ph"][1] < df["ph"][1]
+    assert res_df["ph"][1] < df["ph"][1] #why not all?
 
-    # see only transform (no fit) when already fitted
+    # see only transform (no fit) when already fitted #why not just do with original and see that they are the same?
     df2 = _some_df2b()
     res_df2 = scale_stage(df2)
     assert "ph" in res_df2.columns

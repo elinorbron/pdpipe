@@ -24,7 +24,7 @@ from pdpipe.shared import (
     _get_args_list,
     _identity_function,
 )
-
+import inspect
 from .exceptions import PipelineApplicationError
 
 
@@ -127,7 +127,128 @@ class Encode(ColumnsBasedPipelineStage):
         return inter_df
 
 
-class Impute(ColumnsBasedPipelineStage):
+
+# class Impute(ColumnsBasedPipelineStage):
+#     """A pipeline stage that imputes the missing values, meaning, infers missing values
+#     from the known part of the data.
+
+#     The imputer for each column is saved in the attribute 'imputers', which
+#     is a dict mapping each imputed column name to the
+#     sklearn.impute.SimpleImputer object used to impute it.
+
+#     Parameters
+#     ----------
+#     columns : single label, list-like or callable, default None
+#         Column labels in the DataFrame to be imputed. If columns is None then
+#         all the columns with missing values will be converted, except
+#         those given in the exclude_columns parameter. Alternatively,
+#         this parameter can be assigned a callable returning an iterable of
+#         labels from an input pandas.DataFrame. See pdpipe.cq.
+#     exclude_columns : str or list-like, default None
+#         Label or labels of columns to be excluded from imputing. If None then
+#         no column is excluded. Alternatively, this parameter can be assigned a
+#         callable returning an iterable of labels from an input
+#     drop : bool, default True
+#         If set to True, the source columns are dropped after being imputed,
+#         and the resulting imputed columns retain the names of the source
+#         columns. Otherwise, imputed columns gain the suffix '_impt'.
+
+#     Example
+#     -------
+#         >>> import pandas as pd; import pdpipe as pdp; import numpy as np;
+#         >>> data = [[3.2, 2, 'white'], [7.2, 3, 'white'], [12.1, np.nan, np.nan]]
+#         >>> df = pd.DataFrame(data, [1,2,3], ["ph", "rating", "type"])
+#         >>> impute_stage = pdp.Impute("rating")
+#         >>> impute_stage(df)
+#              ph  rating   type
+#         1   3.2     2.0  white
+#         2   7.2     3.0  white
+#         3  12.1     2.5    NaN
+#         >>> impute_stage = pdp.Impute()
+#         >>> impute_stage(df)
+#              ph  rating   type
+#         1   3.2     2.0  white
+#         2   7.2     3.0  white
+#         3  12.1     2.5    NaN
+#     """
+#     # currently uses mean for all and will fail if passing categorical
+#     # allow passing parameters to simple
+#     # handle categories?
+#     # more options for Simple? or something that allows using other imputers as well?
+#     #if I allow specifing cols and methods - then it should fail if categorical and somethings wired.
+
+#     def __init__(self, columns=None, exclude_columns=None, drop=True, **kwargs):
+#         self._drop = drop
+#         self.imputers = {}
+#         super_kwargs = {
+#             "columns": columns,
+#             "exclude_columns": exclude_columns,
+#             "desc_temp": "Impute {}",  # NOTE: what is this?
+#         }
+#         super_kwargs.update(**kwargs)
+#         super_kwargs["none_columns"] = OfDtypes(np.number) & WithMissingValues()
+#         super().__init__(**super_kwargs)
+
+#     def _transformation(self, df, verbose, fit):
+#         raise NotImplementedError
+
+#     def _fit_transform(self, df, verbose):
+#         self.imputers = {}
+#         columns_to_impute = self._get_columns(df, fit=True)
+#         if verbose:
+#             columns_to_impute = tqdm.tqdm(columns_to_impute)
+#         inter_df = df
+#         for colname in columns_to_impute:
+#             imptr = sklearn.impute.SimpleImputer()
+#             source_col = df[colname]
+#             loc = df.columns.get_loc(colname) + 1
+#             new_name = colname + "_impt"
+#             if self._drop:
+#                 inter_df = inter_df.drop(colname, axis=1)
+#                 new_name = colname
+#                 loc -= 1
+#             inter_df = out_of_place_col_insert(
+#                 df=inter_df,
+#                 series=imptr.fit_transform(pd.DataFrame(source_col)),
+#                 loc=loc,
+#                 column_name=new_name,
+#             )
+#             self.imputers[colname] = imptr
+#         self.is_fitted = True
+#         return inter_df
+
+#     def _transform(self, df, verbose):
+#         inter_df = df
+#         for colname in self.imputers:
+#             imptr = self.imputers[colname]
+#             source_col = df[colname]
+#             loc = df.columns.get_loc(colname) + 1
+#             new_name = colname + "_impt"
+#             if self._drop:
+#                 inter_df = inter_df.drop(colname, axis=1)
+#                 new_name = colname
+#                 loc -= 1
+#             inter_df = out_of_place_col_insert(
+#                 df=inter_df,
+#                 series=imptr.transform(pd.DataFrame(source_col)),
+#                 loc=loc,
+#                 column_name=new_name,
+#             )
+#         return inter_df
+
+def grab_by_module_and_class( module_name, cls_name, **kwargs):# TODO: move? docstring test? document?
+    from importlib import import_module
+    submodule = import_module(f'sklearn.{module_name}')
+    klass = getattr(submodule, cls_name)
+    # allowed_kwargs =  inspect.getfullargspec(klass).args
+    # constructor_kwargs = {
+    #     key: kwargs[key] for key in kwargs
+    #     if key in allowed_kwargs and key != 'self'
+    # }
+    # return klass(**constructor_kwargs)
+    return klass(**kwargs)
+
+class Impute(ColumnsBasedPipelineStage):#TODO: docomentation for imputer. tests for other imputer types.
     """A pipeline stage that imputes the missing values, meaning, infers missing values
     from the known part of the data.
 
@@ -155,82 +276,93 @@ class Impute(ColumnsBasedPipelineStage):
     Example
     -------
         >>> import pandas as pd; import pdpipe as pdp; import numpy as np;
-        >>> data = [[3.2, 2], [7.2, 3], [12.1, np.nan]]
-        >>> df = pd.DataFrame(data, [1,2,3], ["ph","rating"])
-        >>> impute_stage = pdp.Impute("rating")
-        >>> impute_stage(df)
-             ph  rating
-        1   3.2     2.0
-        2   7.2     3.0
-        3  12.1     2.5
+        >>> data = [[3.2, 2, 'white'], [7.2, 3, 'white'], [12.1, np.nan, np.nan]]
+        >>> df = pd.DataFrame(data, [1,2,3], ["ph", "rating", "type"])
+        >>> impute_num_mean_stage = pdp.Impute("SimpleImputer")
+        >>> impute_num_mean_stage(df)
+             ph  rating   type
+        1   3.2     2.0  white
+        2   7.2     3.0  white
+        3  12.1     2.5    NaN
+        >>> impute_cat_stage = pdp.Impute("SimpleImputer", ["type"], strategy="most_frequent")
+        >>> impute_cat_stage(df)
+             ph  rating   type
+        1   3.2     2.0  white
+        2   7.2     3.0  white
+        3  12.1     NaN  white
+        >>> impute_all = impute_num_mean_stage + impute_cat_stage
+        >>> impute_all(df)
+             ph  rating   type
+        1   3.2     2.0  white
+        2   7.2     3.0  white
+        3  12.1     2.5  white
     """
 
-    #currently uses mean for all and will fail if passing categorical
-    # #TODO: add a more complicated example
-    # allow passing parameters to simple
-    # handle categories?
-    # more options for Simple? or something that allows using other imputers as well?
-
-    def __init__(self, columns=None, exclude_columns=None, drop=True, **kwargs):
-        self._drop = drop
-        self.imputers = {}
+    _module_name ='impute'
+    def __init__(self, imputer, columns=None, exclude_columns=None, **kwargs):
+        self.imputer = imputer
+        self._kwargs = kwargs
         super_kwargs = {
             "columns": columns,
             "exclude_columns": exclude_columns,
-            "desc_temp": "Impute {}",  # NOTE: what is this?
+            "desc_temp": "Impute columns {}",
         }
-        super_kwargs.update(**kwargs)
-        super_kwargs["none_columns"] = WithMissingValues()
+        valid_super_kwargs = super()._init_kwargs()
+        for key in kwargs:
+            if key in valid_super_kwargs:
+                super_kwargs[key] = kwargs[key]
+        super_kwargs["none_columns"] = OfDtypes(np.number) & WithMissingValues()
         super().__init__(**super_kwargs)
 
     def _transformation(self, df, verbose, fit):
         raise NotImplementedError
 
     def _fit_transform(self, df, verbose):
-        self.imputers = {}
-        columns_to_impute = self._get_columns(df, fit=True)
-        if verbose:
-            columns_to_impute = tqdm.tqdm(columns_to_impute)
-        inter_df = df
-        for colname in columns_to_impute:
-            imptr = sklearn.impute.SimpleImputer()
-            source_data = df[colname].to_numpy().reshape(-1,1)
-            loc = df.columns.get_loc(colname) + 1
-            new_name = colname + "_impt"
-            if self._drop:
-                inter_df = inter_df.drop(colname, axis=1)
-                new_name = colname
-                loc -= 1
-            inter_df = out_of_place_col_insert(
-                df=inter_df,
-                series=imptr.fit_transform(source_data).reshape(-1),
-                loc=loc,
-                column_name=new_name,
+        self._columns_to_impute = self._get_columns(df , fit=True)
+        unaffected_cols = [x for x in df.columns if x not in self._columns_to_impute]
+        col_order = list(df.columns)
+        inter_df = df[self._columns_to_impute]
+        self._imputer = grab_by_module_and_class(self._module_name,self.imputer, **self._kwargs)
+        try:
+            inter_df = pd.DataFrame(
+                data=self._imputer.fit_transform(inter_df.values),
+                index=inter_df.index,
+                columns=inter_df.columns,
             )
-            self.imputers[colname] = imptr
+        except Exception:
+            raise PipelineApplicationError(
+                "Exception raised when Impute applied to columns {}".format(
+                    self._columns_to_impute
+                )
+            )
+        if len(unaffected_cols) > 0:
+            unaffected = df[unaffected_cols]
+            inter_df = pd.concat([inter_df, unaffected], axis=1)
+            inter_df = inter_df[col_order]
         self.is_fitted = True
         return inter_df
 
     def _transform(self, df, verbose):
-        inter_df = df
-        for colname in self.imputers:
-            imptr = self.imputers[colname]
-            source_col = df[colname]
-            source_data = df[colname].to_numpy().reshape(-1,1)
-            loc = df.columns.get_loc(colname) + 1
-            new_name = colname + "_impt"
-            if self._drop:
-                inter_df = inter_df.drop(colname, axis=1)
-                new_name = colname
-                loc -= 1
-            inter_df = out_of_place_col_insert(
-                df=inter_df,
-                series=imptr.transform(source_data).reshape(-1),
-                loc=loc,
-                column_name=new_name,
+        unaffected_cols = [x for x in df.columns if x not in self._columns_to_impute]
+        col_order = list(df.columns)
+        inter_df = df[self._columns_to_impute]
+        try:
+            inter_df = pd.DataFrame(
+                data=self._imputer.transform(inter_df.values),
+                index=inter_df.index,
+                columns=inter_df.columns,
             )
+        except Exception:
+            raise PipelineApplicationError(
+                "Exception raised when Scale applied to columns {}".format(
+                    self._columns_to_impute
+                )
+            )
+        if len(unaffected_cols) > 0:
+            unaffected = df[unaffected_cols]
+            inter_df = pd.concat([inter_df, unaffected], axis=1)
+            inter_df = inter_df[col_order]
         return inter_df
-
 
 class Scale(ColumnsBasedPipelineStage):
     """A pipeline stage that scales data.
@@ -294,6 +426,7 @@ class Scale(ColumnsBasedPipelineStage):
         col_order = list(df.columns)
         inter_df = df[self._columns_to_scale]
         self._scaler = scaler_by_params(self.scaler, **self._kwargs)
+
         try:
             inter_df = pd.DataFrame(
                 data=self._scaler.fit_transform(inter_df.values),
