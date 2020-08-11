@@ -127,120 +127,11 @@ class Encode(ColumnsBasedPipelineStage):
         return inter_df
 
 
-
-# class Impute(ColumnsBasedPipelineStage):
-#     """A pipeline stage that imputes the missing values, meaning, infers missing values
-#     from the known part of the data.
-
-#     The imputer for each column is saved in the attribute 'imputers', which
-#     is a dict mapping each imputed column name to the
-#     sklearn.impute.SimpleImputer object used to impute it.
-
-#     Parameters
-#     ----------
-#     columns : single label, list-like or callable, default None
-#         Column labels in the DataFrame to be imputed. If columns is None then
-#         all the columns with missing values will be converted, except
-#         those given in the exclude_columns parameter. Alternatively,
-#         this parameter can be assigned a callable returning an iterable of
-#         labels from an input pandas.DataFrame. See pdpipe.cq.
-#     exclude_columns : str or list-like, default None
-#         Label or labels of columns to be excluded from imputing. If None then
-#         no column is excluded. Alternatively, this parameter can be assigned a
-#         callable returning an iterable of labels from an input
-#     drop : bool, default True
-#         If set to True, the source columns are dropped after being imputed,
-#         and the resulting imputed columns retain the names of the source
-#         columns. Otherwise, imputed columns gain the suffix '_impt'.
-
-#     Example
-#     -------
-#         >>> import pandas as pd; import pdpipe as pdp; import numpy as np;
-#         >>> data = [[3.2, 2, 'white'], [7.2, 3, 'white'], [12.1, np.nan, np.nan]]
-#         >>> df = pd.DataFrame(data, [1,2,3], ["ph", "rating", "type"])
-#         >>> impute_stage = pdp.Impute("rating")
-#         >>> impute_stage(df)
-#              ph  rating   type
-#         1   3.2     2.0  white
-#         2   7.2     3.0  white
-#         3  12.1     2.5    NaN
-#         >>> impute_stage = pdp.Impute()
-#         >>> impute_stage(df)
-#              ph  rating   type
-#         1   3.2     2.0  white
-#         2   7.2     3.0  white
-#         3  12.1     2.5    NaN
-#     """
-#     # currently uses mean for all and will fail if passing categorical
-#     # allow passing parameters to simple
-#     # handle categories?
-#     # more options for Simple? or something that allows using other imputers as well?
-#     #if I allow specifing cols and methods - then it should fail if categorical and somethings wired.
-
-#     def __init__(self, columns=None, exclude_columns=None, drop=True, **kwargs):
-#         self._drop = drop
-#         self.imputers = {}
-#         super_kwargs = {
-#             "columns": columns,
-#             "exclude_columns": exclude_columns,
-#             "desc_temp": "Impute {}",  # NOTE: what is this?
-#         }
-#         super_kwargs.update(**kwargs)
-#         super_kwargs["none_columns"] = OfDtypes(np.number) & WithMissingValues()
-#         super().__init__(**super_kwargs)
-
-#     def _transformation(self, df, verbose, fit):
-#         raise NotImplementedError
-
-#     def _fit_transform(self, df, verbose):
-#         self.imputers = {}
-#         columns_to_impute = self._get_columns(df, fit=True)
-#         if verbose:
-#             columns_to_impute = tqdm.tqdm(columns_to_impute)
-#         inter_df = df
-#         for colname in columns_to_impute:
-#             imptr = sklearn.impute.SimpleImputer()
-#             source_col = df[colname]
-#             loc = df.columns.get_loc(colname) + 1
-#             new_name = colname + "_impt"
-#             if self._drop:
-#                 inter_df = inter_df.drop(colname, axis=1)
-#                 new_name = colname
-#                 loc -= 1
-#             inter_df = out_of_place_col_insert(
-#                 df=inter_df,
-#                 series=imptr.fit_transform(pd.DataFrame(source_col)),
-#                 loc=loc,
-#                 column_name=new_name,
-#             )
-#             self.imputers[colname] = imptr
-#         self.is_fitted = True
-#         return inter_df
-
-#     def _transform(self, df, verbose):
-#         inter_df = df
-#         for colname in self.imputers:
-#             imptr = self.imputers[colname]
-#             source_col = df[colname]
-#             loc = df.columns.get_loc(colname) + 1
-#             new_name = colname + "_impt"
-#             if self._drop:
-#                 inter_df = inter_df.drop(colname, axis=1)
-#                 new_name = colname
-#                 loc -= 1
-#             inter_df = out_of_place_col_insert(
-#                 df=inter_df,
-#                 series=imptr.transform(pd.DataFrame(source_col)),
-#                 loc=loc,
-#                 column_name=new_name,
-#             )
-#         return inter_df
-
 def grab_by_module_and_class( module_name, cls_name, **kwargs):# TODO: move? docstring test? document?
     from importlib import import_module
     submodule = import_module(f'sklearn.{module_name}')
     klass = getattr(submodule, cls_name)
-    # allowed_kwargs =  inspect.getfullargspec(klass).args
+    # allowed_kwargs =  inspect.getfullargspec(klass).args#:TODO: find alternative solution - this doesn't work, arg =[]
     # constructor_kwargs = {
     #     key: kwargs[key] for key in kwargs
     #     if key in allowed_kwargs and key != 'self'
@@ -296,6 +187,18 @@ class Impute(ColumnsBasedPipelineStage):#TODO: docomentation for imputer. tests 
         1   3.2     2.0  white
         2   7.2     3.0  white
         3  12.1     2.5  white
+        >>> data = [[3.2, 2, 1],
+        ... [3.2, 2, np.nan],
+        ... [7.2, 3, 2],
+        ... [12.1, 3, 2]]
+        >>> df2 = pd.DataFrame(data, [1,2,3,4], ["ph", "rating", "type"])
+        >>> impute_knn = pdp.Impute("KNNImputer",["ph", "rating", "type"], n_neighbors=1) #must pass all because they are needed
+        >>> impute_knn(df2)
+             ph  rating  type
+        1   3.2     2.0   1.0
+        2   3.2     2.0   1.0
+        3   7.2     3.0   2.0
+        4  12.1     3.0   2.0
     """
 
     _module_name ='impute'
